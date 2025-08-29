@@ -60,3 +60,4 @@ if __name__ == "__main__":
         print("\n🎉 All tests passed! API is working correctly.")
     else:
         print("\n❌ Some tests failed. Check the output above for details.")
+
