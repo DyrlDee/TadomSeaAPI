@@ -1,0 +1,4 @@
+The model is used to predict vessel future possition
+Trained only on zone 14 area (in future we will train for zone 15 - 17)
+so later the demonstartion will not show in malaysia area(Zone 49 - Zone 50)
+but zone 14
