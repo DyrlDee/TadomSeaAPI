@@ -1,6 +1,8 @@
+import json
 from fastapi import FastAPI, HTTPException, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, ValidationError, GetCoreSchemaHandler
 from pydantic_core import core_schema
 from typing import Optional, List, Any, Annotated
@@ -8,6 +10,8 @@ from datetime import datetime, timezone
 from bson import ObjectId
 import os
 import uuid
+import asyncio
+import pandas as pd
 
 try:
     from pymongo import MongoClient, ASCENDING
@@ -64,7 +68,7 @@ def create_app() -> FastAPI:
     # CORS - Explicitly allow frontend origins
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+        allow_origins=["*"],
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["*"],
@@ -184,6 +188,34 @@ def create_app() -> FastAPI:
             reports.append(PlasticReportOut(**doc))
         
         return reports
+    
+    #FOR VESSEL SIMULATION PART
+    dfZone14 = pd.read_csv("ais_prepared_14N.csv")
+    dfZone14 = dfZone14.sort_values("t")
+
+    # Group by timestamp
+    grouped = dfZone14.groupby("t")
+
+    async def event_generator():
+        for timestamp, group in grouped:
+            # Convert to {sourcemmsi: {other fields}}
+            batch = {
+                str(row["sourcemmsi"]): {
+                    k: v for k, v in row.items() if k != "sourcemmsi"
+                }
+                for _, row in group.iterrows()
+            }
+            data = {
+                "timestamp": int(timestamp),
+                "records": batch
+            }
+            # Send as one SSE event
+            yield f"data: {json.dumps(data)}\n\n"
+            await asyncio.sleep(60)  # fixed 60s wait
+
+    @app.get("/start-simulation")
+    async def start_simulation():
+        return StreamingResponse(event_generator(), media_type="text/event-stream")
 
     return app
 
